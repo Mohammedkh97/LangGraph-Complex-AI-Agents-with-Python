@@ -26,6 +26,7 @@ def process(state: AgentState) -> AgentState:
     response = llm.invoke(state["message"])
     print(f"AI: {response.content}")
     state["response"] = response.content #type: ignore
+    # print("CURRENT STATE: ", state["message"])
     return state
 
 
@@ -38,4 +39,8 @@ agent = graph.compile()
 
 # Run
 user_input = input("Enter: ")
-agent.invoke({"message": [HumanMessage(content=user_input)]}) # type: ignore
+# agent.invoke({"message": [HumanMessage(content=user_input)]}) # type: ignore
+
+while user_input != "exit":
+    agent.invoke({"message": [HumanMessage(content=user_input)]})  # type: ignore
+    user_input = input("Enter: ")
