@@ -26,7 +26,7 @@ def process(state: AgentState) -> AgentState:
     response = llm.invoke(state["message"])
     print(f"AI: {response.content}")
     state["response"] = response.content #type: ignore
-    # print("CURRENT STATE: ", state["message"])
+    print("CURRENT STATE: ", state["message"])
     return state
 
 
