@@ -1,11 +1,7 @@
 from typing import TypedDict, List, Union
-import os
-from typing import List, TypedDict, Union
-
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, START, END
-from langgraph.graph import END, StateGraph, START
 from dotenv import load_dotenv
 import os
 
@@ -19,7 +15,7 @@ class AgentState(TypedDict):
     # response: Optional[str]
 
 
-# Define the LLM via LangChain but point it to Groq
+# Define the LLM
 llm = ChatOpenAI(
     # model="llama-3-8b-8192",
     model="openai/gpt-oss-120b",
@@ -31,8 +27,7 @@ llm = ChatOpenAI(
 
 
 def process(state: AgentState) -> AgentState:
-    """THis node handles the requests you request"""
-    """This node invokes the LLM to get a response."""
+    """Node that handles the user message with the LLM"""
     response = llm.invoke(state["message"])
     state["message"].append(AIMessage(content=response.content))
     print(f"AI: {response.content}")
@@ -41,59 +36,43 @@ def process(state: AgentState) -> AgentState:
     return state
 
 
-graph = StateGraph(AgentState)
-
-
 def main():
-    """Main function to run the conversational agent."""
+    # Build the graph
     graph = StateGraph(AgentState)
     graph.add_node("process", process)
     graph.add_edge(START, "process")
     graph.add_edge("process", END)
     agent = graph.compile()
 
+    # Conversation loop
+    conversation_history: List[Union[HumanMessage, AIMessage]] = []
+    print("Welcome to the AI Agent! Type 'exit' to quit.")
 
-graph.add_node("process", process)
-graph.add_edge(START, "process")
-graph.add_edge("process", END)
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() == "exit":
+            print("Exiting conversation.")
+            break
 
-agent = graph.compile()
-conversation_history: List[Union[HumanMessage, AIMessage]] = []
+        conversation_history.append(HumanMessage(content=user_input))
+        result = agent.invoke({"message": conversation_history})
 
-conversation_history = []
-print("Welcome to the AI Agent! Type 'exit' to quit.")
-# while True:
-#     user_input = input("You: ")
-#     if user_input.lower() == "exit":
-#         print("Exiting conversation.")
-#         break
+        # keep memory
+        conversation_history = result["message"]
 
-user_input = input("Enter: ")
-while user_input != "exit":
-    conversation_history.append(HumanMessage(content=user_input))
-    result = agent.invoke({"message": conversation_history})
-    ai_reply = result["message"][-1].content
-    # print(f"AI: {ai_reply}")
-    conversation_history.append(HumanMessage(content=user_input))
-    # # show only AI's reply, clean
-    # ai_reply = result["message"][-1].content
-    # # print(f"AI: {ai_reply}")
-    conversation_history = result["message"]
-    # # keep memory
-    # conversation_history = result["message"]
-    user_input = input("Enter: ")
+    # Save conversation to file (append mode)
+    os.makedirs("logs", exist_ok=True)
+    with open("logs/logging.txt", "a", encoding="utf-8") as f:
+        # count conversations by adding a header each time
+        f.write("\n=== New Conversation ===\n")
+        for message in conversation_history:
+            if isinstance(message, HumanMessage):
+                f.write(f"You: {message.content}\n")
+            elif isinstance(message, AIMessage):
+                f.write(f"AI: {message.content}\n")
+        f.write("--- End of Conversation ---\n")
 
-with open("logs/logging.txt", "w") as f:
-    f.write("Your conversation history:\n")
-    for message in conversation_history:
-        if isinstance(message, HumanMessage):
-            f.write(f"You: {message.content}\n")
-        elif isinstance(message, AIMessage):
-            f.write(f"AI: {message.content}\n")
-        
-    f.write("\n--- End of Conversation ---\n")
-    
-print("Conversation history saved to logs/logging.txt")
+    print("Conversation history appended to logs/logging.txt")
 
 
 if __name__ == "__main__":
