@@ -35,8 +35,7 @@ def process(state: AgentState) -> AgentState:
     """This node invokes the LLM to get a response."""
     response = llm.invoke(state["message"])
     state["message"].append(AIMessage(content=response.content))
-    # print(f"AI: {response.content}")
-    print("CURRENT STATE: ", state["message"])
+    print(f"AI: {response.content}")
     print("CURRENT STATE: ", state["message"])
     # The state is modified in-place and returned
     return state
@@ -63,35 +62,38 @@ conversation_history: List[Union[HumanMessage, AIMessage]] = []
 
 conversation_history = []
 print("Welcome to the AI Agent! Type 'exit' to quit.")
-while True:
-    user_input = input("You: ")
-    if user_input.lower() == "exit":
-        print("Exiting conversation.")
-        break
+# while True:
+#     user_input = input("You: ")
+#     if user_input.lower() == "exit":
+#         print("Exiting conversation.")
+#         break
 
 user_input = input("Enter: ")
 while user_input != "exit":
     conversation_history.append(HumanMessage(content=user_input))
     result = agent.invoke({"message": conversation_history})
     ai_reply = result["message"][-1].content
-    print(f"AI: {ai_reply}")
+    # print(f"AI: {ai_reply}")
     conversation_history.append(HumanMessage(content=user_input))
-
-    # show only AI's reply, clean
-    ai_reply = result["message"][-1].content
-    print(f"AI: {ai_reply}")
+    # # show only AI's reply, clean
+    # ai_reply = result["message"][-1].content
+    # # print(f"AI: {ai_reply}")
     conversation_history = result["message"]
-    # keep memory
-    conversation_history = result["message"]
+    # # keep memory
+    # conversation_history = result["message"]
     user_input = input("Enter: ")
 
-    # The agent will receive the full history and append the AI's response
-    result = agent.invoke({"message": conversation_history})
-
-    # The result contains the updated history, so we just update our local copy
-    conversation_history = result["message"]
-    ai_reply = conversation_history[-1].content
-    print(f"AI: {ai_reply}")
+with open("logs/logging.txt", "w") as f:
+    f.write("Your conversation history:\n")
+    for message in conversation_history:
+        if isinstance(message, HumanMessage):
+            f.write(f"You: {message.content}\n")
+        elif isinstance(message, AIMessage):
+            f.write(f"AI: {message.content}\n")
+        
+    f.write("\n--- End of Conversation ---\n")
+    
+print("Conversation history saved to logs/logging.txt")
 
 
 if __name__ == "__main__":
