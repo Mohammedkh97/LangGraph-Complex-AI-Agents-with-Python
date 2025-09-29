@@ -36,6 +36,43 @@ def process(state: AgentState) -> AgentState:
     return state
 
 
+# --- Utility to save & load conversations ---
+LOG_FILE = "logs/logging.txt"
+
+
+def save_conversation(conversation: List[Union[HumanMessage, AIMessage]]):
+    os.makedirs("logs", exist_ok=True)
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write("\n=== New Conversation ===\n")
+        for message in conversation:
+            if isinstance(message, HumanMessage):
+                f.write(f"YOU: {message.content}\n")
+            elif isinstance(message, AIMessage):
+                f.write(f"AI: {message.content}\n")
+        f.write("--- End of Conversation ---\n")
+
+
+def load_last_conversation() -> List[Union[HumanMessage, AIMessage]]:
+    if not os.path.exists(LOG_FILE):
+        return []
+
+    conversation: List[Union[HumanMessage, AIMessage]] = []
+    with open(LOG_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    # Parse only the last conversation block
+    if "=== New Conversation ===" in "".join(lines):
+        last_block = "".join(lines).split("=== New Conversation ===")[-1]
+        for line in last_block.splitlines():
+            if line.startswith("YOU: "):
+                conversation.append(
+                    HumanMessage(content=line.replace("YOU: ", "").strip())
+                )
+            elif line.startswith("AI: "):
+                conversation.append(AIMessage(content=line.replace("AI: ", "").strip()))
+    return conversation
+
+
 def main():
     # Build the graph
     graph = StateGraph(AgentState)
@@ -44,35 +81,24 @@ def main():
     graph.add_edge("process", END)
     agent = graph.compile()
 
-    # Conversation loop
-    conversation_history: List[Union[HumanMessage, AIMessage]] = []
-    print("Welcome to the AI Agent! Type 'exit' to quit.")
+    # Load last session’s memory (but keep hidden)
+    conversation_history = load_last_conversation()
+
+    print("✨ Welcome to the AI Agent!")
+    print("Type 'exit' to quit.")
 
     while True:
         user_input = input("You: ")
         if user_input.lower() == "exit":
             print("Exiting conversation.")
+            save_conversation(conversation_history)
             break
 
         conversation_history.append(HumanMessage(content=user_input))
         result = agent.invoke({"message": conversation_history})
 
-        # keep memory
+        # Update memory
         conversation_history = result["message"]
-
-    # Save conversation to file (append mode)
-    os.makedirs("logs", exist_ok=True)
-    with open("logs/logging.txt", "a", encoding="utf-8") as f:
-        # count conversations by adding a header each time
-        f.write("\n=== New Conversation ===\n")
-        for message in conversation_history:
-            if isinstance(message, HumanMessage):
-                f.write(f"You: {message.content}\n")
-            elif isinstance(message, AIMessage):
-                f.write(f"AI: {message.content}\n")
-        f.write("--- End of Conversation ---\n")
-
-    print("Conversation history appended to logs/logging.txt")
 
 
 if __name__ == "__main__":
