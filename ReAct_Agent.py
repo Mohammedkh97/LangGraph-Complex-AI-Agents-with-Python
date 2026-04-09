@@ -14,6 +14,12 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from dotenv import load_dotenv
 import os
+import sys
+
+# Ensure UTF-8 encoding for Windows console
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
 load_dotenv()
@@ -44,14 +50,25 @@ def multiply(a: int, b: int) -> int:
     return a * b
 
 
-tools = [add, subtract, multiply]
+@tool
+def divide(a: float, b: float) -> float:
+    """This is a division function that divides two numbers. It handles float results."""
+    if b == 0:
+        return "Error: Division by zero"
+    return a / b
+
+
+@tool
+def power(a: float, b: float) -> float:
+    """This is a power function that raises a number to the power of another."""
+    return a ** b
+
+
+tools = [add, subtract, multiply, divide, power]
 
 
 llm = ChatOpenAI(
-    # model="llama-3-8b-8192",
-    model="openai/gpt-oss-120b",
-    # model="deepseek-r1-distill-llama-70b",
-    # model="llama3-8b-8192",
+    model="llama-3.3-70b-versatile",
     api_key=API_KEY,  # type: ignore
     base_url="https://api.groq.com/openai/v1",
 ).bind_tools(tools)
@@ -59,11 +76,13 @@ llm = ChatOpenAI(
 
 def llm_model(state: AgentState) -> AgentState:
     system_prompt = SystemMessage(
-        content="You are a helpful AI assistant. You have access to the following tools, so please answer my query to the best of your ability."
+        content=(
+            "You are a helpful AI assistant with access to mathematical tools. "
+            "Solve the user's query step-by-step using the provided tools. "
+            "Always explain your reasoning before using a tool."
+        )
     )
 
-    # The `add_messages` in the state automatically appends new messages
-    # We can add the system prompt if it's the first message
     messages = state["messages"]
     if not any(isinstance(m, SystemMessage) for m in messages):
         messages = [system_prompt] + messages  # type: ignore
@@ -132,26 +151,44 @@ agent = graph.compile()
 
 
 def run(stream):
+    print("\n" + "="*50)
+    print("🚀 STARTING AGENT SESSION")
+    print("="*50 + "\n")
+
     for s in stream:
-        print(s)  # debugging: see what node gave output
-        # get the node name (first and only key in dict)
-        node_name = list(s.keys())[0]
-        state = s[node_name]
-        message = state["messages"][-1]
-
-        if isinstance(message, tuple):
-            print(message)
+        # Check if we are in 'updates' mode (dict of node names)
+        if isinstance(s, dict):
+            for node_name, state in s.items():
+                print(f"[{node_name.upper()} NODE]")
+                
+                messages = state.get("messages", [])
+                for message in messages:
+                    if isinstance(message, AIMessage):
+                        if message.content:
+                            print(f"🤖 Agent Reasoning:\n{message.content.strip()}")
+                        
+                        if message.tool_calls:
+                            for tool_call in message.tool_calls:
+                                print(f"🛠️ Tool Call: {tool_call['name']}({tool_call['args']})")
+                    
+                    elif isinstance(message, ToolMessage):
+                        print(f"🔍 Observation: {message.content}")
+                    
+                    elif isinstance(message, HumanMessage):
+                        print(f"👤 User: {message.content}")
+                
+                print("-" * 30)
         else:
-            message.pretty_print()
-        print("\n---\n")
+            # If stream_mode="values", s is the full state
+            print("Full State Update:", s)
+
+    print("\n" + "="*50)
+    print("🏁 SESSION COMPLETE")
+    print("="*50 + "\n")
 
 
-# inputs = {"messages": [HumanMessage(content="what is 5 plus 5  and 23 minus 7?")]}
-# run(agent.stream(inputs, stream_node="values"))
 if __name__ == "__main__":
-    run(
-        agent.stream(
-            {"messages": [HumanMessage(content="what is 5 plus 5  and 23 minus 7?")]},
-            stream_node="values",
-        )
-    )
+    inputs = {"messages": [HumanMessage(content="what is 5 plus 5, then multiply the result by 23 and subtract 7?")]}
+    
+    # We use stream_mode="updates" for clear node-by-node feedback
+    run(agent.stream(inputs, stream_mode="updates"))
