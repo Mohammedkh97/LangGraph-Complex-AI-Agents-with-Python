@@ -16,11 +16,11 @@ from langgraph.prebuilt import ToolNode
 from os import getenv
 import sys
 
-# Ensure UTF-8 encoding for Windows console
-if sys.platform == "win32":
-    import io
+# # Ensure UTF-8 encoding for Windows console
+# if sys.platform == "win32":
+#     import io
 
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+#     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 load_dotenv()
 

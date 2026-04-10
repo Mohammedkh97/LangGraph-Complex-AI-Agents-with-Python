@@ -7,7 +7,7 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-from langchain_openai import ChatOpenAI
+from langchain_groq import ChatGroq
 from langchain_core.tools import tool, BaseTool
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -19,7 +19,8 @@ import sys
 # Ensure UTF-8 encoding for Windows console
 if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 
 load_dotenv()
@@ -61,16 +62,15 @@ def divide(a: float, b: float) -> float:
 @tool
 def power(a: float, b: float) -> float:
     """This is a power function that raises a number to the power of another."""
-    return a ** b
+    return a**b
 
 
 tools = [add, subtract, multiply, divide, power]
 
 
-llm = ChatOpenAI(
+llm = ChatGroq(
     model="llama-3.3-70b-versatile",
     api_key=API_KEY,  # type: ignore
-    base_url="https://api.groq.com/openai/v1",
 ).bind_tools(tools)
 
 
@@ -151,44 +151,52 @@ agent = graph.compile()
 
 
 def run(stream):
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("🚀 STARTING AGENT SESSION")
-    print("="*50 + "\n")
+    print("=" * 50 + "\n")
 
     for s in stream:
         # Check if we are in 'updates' mode (dict of node names)
         if isinstance(s, dict):
             for node_name, state in s.items():
                 print(f"[{node_name.upper()} NODE]")
-                
+
                 messages = state.get("messages", [])
                 for message in messages:
                     if isinstance(message, AIMessage):
                         if message.content:
                             print(f"🤖 Agent Reasoning:\n{message.content.strip()}")
-                        
+
                         if message.tool_calls:
                             for tool_call in message.tool_calls:
-                                print(f"🛠️ Tool Call: {tool_call['name']}({tool_call['args']})")
-                    
+                                print(
+                                    f"🛠️ Tool Call: {tool_call['name']}({tool_call['args']})"
+                                )
+
                     elif isinstance(message, ToolMessage):
                         print(f"🔍 Observation: {message.content}")
-                    
+
                     elif isinstance(message, HumanMessage):
                         print(f"👤 User: {message.content}")
-                
+
                 print("-" * 30)
         else:
             # If stream_mode="values", s is the full state
             print("Full State Update:", s)
 
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
     print("🏁 SESSION COMPLETE")
-    print("="*50 + "\n")
+    print("=" * 50 + "\n")
 
 
 if __name__ == "__main__":
-    inputs = {"messages": [HumanMessage(content="what is 5 plus 5, then multiply the result by 23 and subtract 7?")]}
-    
+    inputs = {
+        "messages": [
+            HumanMessage(
+                content="what is 5 plus 5, then multiply the result by 23 and subtract 7?"
+            )
+        ]
+    }
+
     # We use stream_mode="updates" for clear node-by-node feedback
     run(agent.stream(inputs, stream_mode="updates"))
